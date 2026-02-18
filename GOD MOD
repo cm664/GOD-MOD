@@ -1,97 +1,230 @@
-local Players=game:GetService("Players")
-local RunService=game:GetService("RunService")
-local player=Players.LocalPlayer
-local camera=workspace.CurrentCamera
+-- Haider Hub X
 
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- instant prompt
+local promptEnabled=false
+local promptConn=nil
+
+local function instantPrompt(obj)
+    if obj:IsA("ProximityPrompt") then
+        obj.HoldDuration = 0
+    end
+end
+
+local function restorePrompt(obj)
+    if obj:IsA("ProximityPrompt") then
+        obj.HoldDuration = 1
+    end
+end
+
+local function togglePrompt()
+    promptEnabled=not promptEnabled
+    if promptEnabled then
+        for _,v in ipairs(workspace:GetDescendants()) do
+            instantPrompt(v)
+        end
+        promptConn=workspace.DescendantAdded:Connect(instantPrompt)
+    else
+        if promptConn then promptConn:Disconnect() promptConn=nil end
+        for _,v in ipairs(workspace:GetDescendants()) do
+            restorePrompt(v)
+        end
+    end
+end
+
+-- god mode
 local isGodmode=false
 local ghostClone=nil
 local connection=nil
 local noclipConn=nil
 
 local function cleanup()
-isGodmode=false
-if connection then connection:Disconnect() connection=nil end
-if noclipConn then noclipConn:Disconnect() noclipConn=nil end
-local char=player.Character
-if char then
-local root=char:FindFirstChild("HumanoidRootPart")
-local hum=char:FindFirstChild("Humanoid")
-for _,v in pairs(char:GetDescendants()) do
-if v:IsA("BasePart") then v.CanCollide=true v.Velocity=Vector3.zero end
-end
-if ghostClone and root then root.CFrame=ghostClone.HumanoidRootPart.CFrame*CFrame.new(0,2,0) end
-if hum then
-hum.PlatformStand=false
-hum:ChangeState(Enum.HumanoidStateType.Landed)
-camera.CameraSubject=hum
-end
-end
-if ghostClone then ghostClone:Destroy() ghostClone=nil end
+    if connection then connection:Disconnect() connection=nil end
+    if noclipConn then noclipConn:Disconnect() noclipConn=nil end
+    local char=player.Character
+    if char then
+        local root=char:FindFirstChild("HumanoidRootPart")
+        local hum=char:FindFirstChild("Humanoid")
+        for _,v in pairs(char:GetDescendants()) do
+            if v:IsA("BasePart") then v.CanCollide=true v.Velocity=Vector3.zero end
+        end
+        if ghostClone and root then root.CFrame=ghostClone.HumanoidRootPart.CFrame*CFrame.new(0,2,0) end
+        if hum then
+            hum.PlatformStand=false
+            hum:ChangeState(Enum.HumanoidStateType.Landed)
+            camera.CameraSubject=hum
+        end
+    end
+    if ghostClone then ghostClone:Destroy() ghostClone=nil end
 end
 
 local function toggleGod()
-isGodmode=not isGodmode
-local char=player.Character
-if not char then return end
-local root=char:FindFirstChild("HumanoidRootPart")
-local hum=char:FindFirstChild("Humanoid")
+    isGodmode=not isGodmode
+    local char=player.Character
+    if not char then return end
+    local root=char:FindFirstChild("HumanoidRootPart")
+    local hum=char:FindFirstChild("Humanoid")
 
-if isGodmode and root and hum then
-char.Archivable=true
-ghostClone=char:Clone()
-ghostClone.Parent=workspace
-char.Archivable=false
-for _,v in pairs(ghostClone:GetDescendants()) do
-if v:IsA("BasePart") then v.Transparency=0.5 v.CanCollide=true end
-end
-hum.PlatformStand=true
-camera.CameraSubject=ghostClone.Humanoid
-noclipConn=RunService.Stepped:Connect(function()
-if isGodmode and char then
-for _,v in pairs(char:GetDescendants()) do
-if v:IsA("BasePart") then v.CanCollide=false end
-end
-end
-end)
-connection=RunService.Heartbeat:Connect(function()
-if ghostClone and char:FindFirstChild("HumanoidRootPart") then
-ghostClone.Humanoid:Move(hum.MoveDirection)
-ghostClone.Humanoid.Jump=hum.Jump
-root.CFrame=ghostClone.HumanoidRootPart.CFrame*CFrame.new(0,-10,0)
-root.AssemblyLinearVelocity=Vector3.zero
-else
-cleanup()
-end
-end)
-else
-cleanup()
-end
+    if isGodmode and root and hum then
+        char.Archivable=true
+        ghostClone=char:Clone()
+        ghostClone.Parent=workspace
+        char.Archivable=false
+
+        for _,v in pairs(ghostClone:GetDescendants()) do
+            if v:IsA("BasePart") then v.Transparency=0.5 v.CanCollide=true end
+        end
+
+        hum.PlatformStand=true
+        camera.CameraSubject=ghostClone.Humanoid
+
+        noclipConn=RunService.Stepped:Connect(function()
+            if isGodmode and char then
+                for _,v in pairs(char:GetDescendants()) do
+                    if v:IsA("BasePart") then v.CanCollide=false end
+                end
+            end
+        end)
+
+        connection=RunService.Heartbeat:Connect(function()
+            if ghostClone and char:FindFirstChild("HumanoidRootPart") then
+                ghostClone.Humanoid:Move(hum.MoveDirection)
+                ghostClone.Humanoid.Jump=hum.Jump
+                root.CFrame=ghostClone.HumanoidRootPart.CFrame*CFrame.new(0,-10,0)
+                root.AssemblyLinearVelocity=Vector3.zero
+            else
+                cleanup()
+            end
+        end)
+    else
+        cleanup()
+    end
 end
 
+-- zoom
+local zoomEnabled=false
+local defaultMax=player.CameraMaxZoomDistance
+local defaultMin=player.CameraMinZoomDistance
+
+local function toggleZoom()
+    zoomEnabled=not zoomEnabled
+    if zoomEnabled then
+        player.CameraMaxZoomDistance=math.huge
+        player.CameraMinZoomDistance=0.5
+    else
+        player.CameraMaxZoomDistance=defaultMax
+        player.CameraMinZoomDistance=defaultMin
+    end
+end
+
+-- gui
 local gui=Instance.new("ScreenGui",game.CoreGui)
 gui.ResetOnSpawn=false
 
-local btn=Instance.new("TextButton",gui)
-btn.Size=UDim2.new(0,140,0,40)
-btn.Position=UDim2.new(0.5,-70,0.6,0)
-btn.BackgroundColor3=Color3.fromRGB(0,0,0)
-btn.BackgroundTransparency=0.35
-btn.Text="GOD MOD : OFF"
-btn.TextColor3=Color3.fromRGB(255,255,255)
-btn.Font=Enum.Font.GothamBold
-btn.TextSize=14
-btn.Active=true
-btn.Draggable=true
-btn.BorderSizePixel=0
+local main=Instance.new("Frame",gui)
+main.Size=UDim2.new(0,170,0,40)
+main.Position=UDim2.new(0.5,-85,0.5,-20)
+main.BackgroundColor3=Color3.fromRGB(0,0,0)
+main.BackgroundTransparency=0.3
+main.Active=true
+main.Draggable=true
+main.BorderSizePixel=0
 
-local corner=Instance.new("UICorner",btn)
+local corner=Instance.new("UICorner",main)
 corner.CornerRadius=UDim.new(0,8)
 
-local stroke=Instance.new("UIStroke",btn)
+local stroke=Instance.new("UIStroke",main)
 stroke.Color=Color3.fromRGB(15,15,15)
 stroke.Thickness=3
 
-btn.MouseButton1Click:Connect(function()
-toggleGod()
-btn.Text="GOD MOD : "..(isGodmode and "ON" or "OFF")
+local title=Instance.new("TextLabel",main)
+title.Size=UDim2.new(1,-40,1,0)
+title.Position=UDim2.new(0,5,0,0)
+title.BackgroundTransparency=1
+title.Text="Haider Hub X"
+title.TextColor3=Color3.fromRGB(255,255,255)
+title.Font=Enum.Font.GothamBold
+title.TextSize=14
+title.TextXAlignment=Enum.TextXAlignment.Left
+
+local toggle=Instance.new("TextButton",main)
+toggle.Size=UDim2.new(0,30,0,30)
+toggle.Position=UDim2.new(1,-35,0.5,-15)
+toggle.BackgroundColor3=Color3.fromRGB(20,20,20)
+toggle.Text="+"
+toggle.TextColor3=Color3.fromRGB(255,255,255)
+toggle.Font=Enum.Font.GothamBold
+toggle.TextSize=18
+toggle.BorderSizePixel=0
+
+local corner2=Instance.new("UICorner",toggle)
+corner2.CornerRadius=UDim.new(0,6)
+
+local container=Instance.new("Frame",gui)
+container.Size=UDim2.new(0,170,0,120)
+container.Position=UDim2.new(0.5,-85,0.5,25)
+container.BackgroundTransparency=1
+container.Visible=false
+
+local layout=Instance.new("UIListLayout",container)
+layout.Padding=UDim.new(0,5)
+
+local function makeBtn(text)
+    local b=Instance.new("TextButton")
+    b.Size=UDim2.new(1,0,0,35)
+    b.BackgroundColor3=Color3.fromRGB(0,0,0)
+    b.BackgroundTransparency=0.3
+    b.Text=text.." : OFF"
+    b.TextColor3=Color3.fromRGB(255,255,255)
+    b.Font=Enum.Font.GothamBold
+    b.TextSize=13
+    b.BorderSizePixel=0
+    local c=Instance.new("UICorner",b)
+    c.CornerRadius=UDim.new(0,8)
+    local s=Instance.new("UIStroke",b)
+    s.Color=Color3.fromRGB(15,15,15)
+    s.Thickness=3
+    b.Parent=container
+    return b
+end
+
+local godBtn=makeBtn("GOD MOD")
+local promptBtn=makeBtn("تسريع المسك")
+local zoomBtn=makeBtn("ZOOM")
+
+local opened=false
+
+toggle.MouseButton1Click:Connect(function()
+    opened=not opened
+    toggle.Text=opened and "-" or "+"
+    container.Visible=opened
+end)
+
+godBtn.MouseButton1Click:Connect(function()
+    toggleGod()
+    godBtn.Text="GOD MOD : "..(isGodmode and "ON" or "OFF")
+end)
+
+promptBtn.MouseButton1Click:Connect(function()
+    togglePrompt()
+    promptBtn.Text="تسريع المسك : "..(promptEnabled and "ON" or "OFF")
+end)
+
+zoomBtn.MouseButton1Click:Connect(function()
+    toggleZoom()
+    zoomBtn.Text="ZOOM : "..(zoomEnabled and "ON" or "OFF")
+end)
+
+RunService.RenderStepped:Connect(function()
+    container.Position=UDim2.new(0,main.AbsolutePosition.X,0,main.AbsolutePosition.Y+45)
+end)
+
+player.CharacterAdded:Connect(function()
+    task.wait(1)
+    main.Position=UDim2.new(0.5,-85,0.5,-20)
+    if isGodmode then toggleGod() end
 end)
