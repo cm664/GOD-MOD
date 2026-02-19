@@ -12,6 +12,8 @@ local promptConn=nil
 local function instantPrompt(obj)
 if obj:IsA("ProximityPrompt") then
 obj.HoldDuration = 0
+obj.RequiresLineOfSight = false
+obj.MaxActivationDistance = 50
 end
 end
 
@@ -36,9 +38,99 @@ end
 end
 end
 
+-- AUTO COLLECT LOOP
+local autoCollect=false
+local autoConn=nil
+local ghostClone=nil
+
+local function getRoot()
+local char=player.Character
+if ghostClone and ghostClone:FindFirstChild("HumanoidRootPart") then
+return ghostClone.HumanoidRootPart
+end
+if char then
+return char:FindFirstChild("HumanoidRootPart")
+end
+end
+
+local function spamPrompt(p)
+if not autoCollect then return end
+if p:IsA("ProximityPrompt") then
+task.spawn(function()
+while autoCollect and p and p.Parent do
+local root=getRoot()
+if not root then task.wait() continue end
+local part=p.Parent
+if part and part:IsA("BasePart") then
+if (part.Position-root.Position).Magnitude<=20 then
+p.HoldDuration=0
+pcall(function()
+fireproximityprompt(p)
+end)
+end
+end
+task.wait()
+end
+end)
+end
+end
+
+local function toggleAutoCollect()
+autoCollect=not autoCollect
+if autoCollect then
+for _,v in ipairs(workspace:GetDescendants()) do
+spamPrompt(v)
+end
+autoConn=workspace.DescendantAdded:Connect(spamPrompt)
+else
+if autoConn then autoConn:Disconnect() autoConn=nil end
+end
+end
+
+-- VIP OPEN / RESTORE
+local vipOpen=false
+local storedVIP={}
+
+local function removeVIP()
+local defaultMap = workspace:FindFirstChild("DefaultMap_SharedInstances")
+if defaultMap then
+local vipWalls = defaultMap:FindFirstChild("VIPWalls")
+if vipWalls then
+storedVIP["default"] = {obj=vipWalls,parent=defaultMap}
+vipWalls.Parent=nil
+end
+end
+
+local arcadeMap = workspace:FindFirstChild("ArcadeMap_SharedInstances")
+if arcadeMap then
+local vipWallsArcade = arcadeMap:FindFirstChild("VIPWalls")
+if vipWallsArcade then
+storedVIP["arcade"] = {obj=vipWallsArcade,parent=arcadeMap}
+vipWallsArcade.Parent=nil
+end
+end
+end
+
+local function restoreVIP()
+for _,data in pairs(storedVIP) do
+if data and data.obj and data.parent then
+data.obj.Parent=data.parent
+end
+end
+storedVIP={}
+end
+
+local function toggleVIP()
+vipOpen=not vipOpen
+if vipOpen then
+removeVIP()
+else
+restoreVIP()
+end
+end
+
 -- god mode
 local isGodmode=false
-local ghostClone=nil
 local connection=nil
 local noclipConn=nil
 
@@ -69,41 +161,40 @@ if not char then return end
 local root=char:FindFirstChild("HumanoidRootPart")
 local hum=char:FindFirstChild("Humanoid")
 
-if isGodmode and root and hum then  
-    char.Archivable=true  
-    ghostClone=char:Clone()  
-    ghostClone.Parent=workspace  
-    char.Archivable=false  
+if isGodmode and root and hum then
+char.Archivable=true
+ghostClone=char:Clone()
+ghostClone.Parent=workspace
+char.Archivable=false
 
-    for _,v in pairs(ghostClone:GetDescendants()) do  
-        if v:IsA("BasePart") then v.Transparency=0.5 v.CanCollide=true end  
-    end  
-
-    hum.PlatformStand=true  
-    camera.CameraSubject=ghostClone.Humanoid  
-
-    noclipConn=RunService.Stepped:Connect(function()  
-        if isGodmode and char then  
-            for _,v in pairs(char:GetDescendants()) do  
-                if v:IsA("BasePart") then v.CanCollide=false end  
-            end  
-        end  
-    end)  
-
-    connection=RunService.Heartbeat:Connect(function()  
-        if ghostClone and char:FindFirstChild("HumanoidRootPart") then  
-            ghostClone.Humanoid:Move(hum.MoveDirection)  
-            ghostClone.Humanoid.Jump=hum.Jump  
-            root.CFrame=ghostClone.HumanoidRootPart.CFrame*CFrame.new(0,-20,0)  
-            root.AssemblyLinearVelocity=Vector3.zero  
-        else  
-            cleanup()  
-        end  
-    end)  
-else  
-    cleanup()  
+for _,v in pairs(ghostClone:GetDescendants()) do
+if v:IsA("BasePart") then v.Transparency=0.5 v.CanCollide=true end
 end
 
+hum.PlatformStand=true
+camera.CameraSubject=ghostClone.Humanoid
+
+noclipConn=RunService.Stepped:Connect(function()
+if isGodmode and char then
+for _,v in pairs(char:GetDescendants()) do
+if v:IsA("BasePart") then v.CanCollide=false end
+end
+end
+end)
+
+connection=RunService.Heartbeat:Connect(function()
+if ghostClone and char:FindFirstChild("HumanoidRootPart") then
+ghostClone.Humanoid:Move(hum.MoveDirection)
+ghostClone.Humanoid.Jump=hum.Jump
+root.CFrame=ghostClone.HumanoidRootPart.CFrame*CFrame.new(0,-20,0)
+root.AssemblyLinearVelocity=Vector3.zero
+else
+cleanup()
+end
+end)
+else
+cleanup()
+end
 end
 
 -- zoom
@@ -165,11 +256,13 @@ toggle.BorderSizePixel=0
 local corner2=Instance.new("UICorner",toggle)
 corner2.CornerRadius=UDim.new(0,6)
 
-local container=Instance.new("Frame",gui)
-container.Size=UDim2.new(0,170,0,120)
+local container=Instance.new("ScrollingFrame",gui)
+container.Size=UDim2.new(0,170,0,155)
 container.Position=UDim2.new(0.5,-85,0.5,25)
 container.BackgroundTransparency=1
 container.Visible=false
+container.CanvasSize=UDim2.new(0,0,0,400)
+container.ScrollBarThickness=3
 
 local layout=Instance.new("UIListLayout",container)
 layout.Padding=UDim.new(0,5)
@@ -196,6 +289,8 @@ end
 local godBtn=makeBtn("GOD MOD")
 local promptBtn=makeBtn("تسريع المسك")
 local zoomBtn=makeBtn("ZOOM")
+local autoBtn=makeBtn("AUTO COLLECT")
+local vipBtn=makeBtn("فتح VIP")
 
 local opened=false
 
@@ -218,6 +313,16 @@ end)
 zoomBtn.MouseButton1Click:Connect(function()
 toggleZoom()
 zoomBtn.Text="ZOOM : "..(zoomEnabled and "ON" or "OFF")
+end)
+
+autoBtn.MouseButton1Click:Connect(function()
+toggleAutoCollect()
+autoBtn.Text="AUTO COLLECT : "..(autoCollect and "ON" or "OFF")
+end)
+
+vipBtn.MouseButton1Click:Connect(function()
+toggleVIP()
+vipBtn.Text="فتح VIP : "..(vipOpen and "ON" or "OFF")
 end)
 
 RunService.RenderStepped:Connect(function()
