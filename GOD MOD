@@ -94,7 +94,7 @@ local function toggleGod()
             if ghostClone and char:FindFirstChild("HumanoidRootPart") then
                 ghostClone.Humanoid:Move(hum.MoveDirection)
                 ghostClone.Humanoid.Jump=hum.Jump
-                root.CFrame=ghostClone.HumanoidRootPart.CFrame*CFrame.new(0,-10,0)
+                root.CFrame=ghostClone.HumanoidRootPart.CFrame*CFrame.new(0,-30,0)
                 root.AssemblyLinearVelocity=Vector3.zero
             else
                 cleanup()
